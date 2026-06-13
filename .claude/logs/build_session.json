@@ -1,21 +1,113 @@
 {
-  "ticket": "RNG-1",
-  "spec": "docs/specs/RNG-1-openscad-parametric-solitaire-ring-template.md",
-  "phase": "feature",
-  "status": "passed",
-  "reflected": true,
+  "spec_source": "docs/specs/RNG-2-flask-stl-generation-endpoint.md",
+  "ticket": "RNG-2",
+  "started_at": "2026-06-13T10:40:00+02:00",
+  "pipeline": "feature",
+  "scale": "direct",
+  "plan_count": 1,
+  "autonomous": true,
+  "agent_invocations": {
+    "brainstorming": [
+      {
+        "timestamp": "2026-06-13T10:41:00+02:00",
+        "agent_type": "Plan",
+        "description": "brainstorm agent (autonomous spec validation)"
+      }
+    ],
+    "planning": [
+      {
+        "timestamp": "2026-06-13T10:44:00+02:00",
+        "agent_type": "Plan",
+        "description": "architect agent (single approach)"
+      }
+    ],
+    "testing_red": [
+      {
+        "timestamp": "2026-06-13T10:48:00+02:00",
+        "agent_type": "general-purpose",
+        "description": "tester agent (RED, 18 tests)"
+      }
+    ],
+    "building_green": [
+      {
+        "timestamp": "2026-06-13T11:02:00+02:00",
+        "agent_type": "general-purpose",
+        "description": "implementer agent (GREEN, 18/18 pass)"
+      }
+    ],
+    "reviewing": [
+      {
+        "timestamp": "2026-06-13T11:15:00+02:00",
+        "agent_type": "Explore",
+        "description": "reviewer agent (APPROVE, zero findings)"
+      }
+    ],
+    "qa": [
+      {
+        "timestamp": "2026-06-13T11:40:00+02:00",
+        "agent_type": "general-purpose",
+        "description": "qa agent (spawned; hit session limit, evidence completed via curl - PASS)"
+      }
+    ]
+  },
+  "current_step": 7,
   "acceptance_criteria": [
-    {"description": "AC1: four modules shank/gallery/prongs/seat union into one solid", "met": true},
-    {"description": "AC2: 7 params wired + overridable via -D", "met": true},
-    {"description": "AC3: min wall 0.8mm enforced by construction", "met": true},
-    {"description": "AC4: min prong tip 0.7mm enforced by construction", "met": true},
-    {"description": "AC5: prong_count snaps to 4 + warns for non {4,6}", "met": true},
-    {"description": "AC6: oversized stone renders valid + warns", "met": true},
-    {"description": "AC7: reusable trimesh validator (watertight, 0 non-manifold, 1 body)", "met": true},
-    {"description": "AC8: parameter-sweep test renders matrix + validates all", "met": true},
-    {"description": "AC9: render time + STL size budget, pinned $fn", "met": true},
-    {"description": "AC10: golden default ring renders + validates", "met": true},
-    {"description": "AC11: clamp/snap warnings on stderr, asserted", "met": true},
-    {"description": "AC12: sane parameter ranges recorded", "met": true}
-  ]
+    {
+      "id": "AC1",
+      "description": "POST /generate-ring accepts all 7 params as JSON and triggers a render",
+      "met": true
+    },
+    {
+      "id": "AC2",
+      "description": "Renders via solitaire.scad through ringcad.render.render_scad (no inline subprocess)",
+      "met": true
+    },
+    {
+      "id": "AC3",
+      "description": "Returns binary STL on success: 200, model/stl, attachment disposition",
+      "met": true
+    },
+    {
+      "id": "AC4",
+      "description": "Returns OpenSCAD stderr on failure with 400 JSON {error, openscad_stderr}",
+      "met": true
+    },
+    {
+      "id": "AC5",
+      "description": "GET /health returns 200 with exactly {\"status\": \"ok\"}",
+      "met": true
+    },
+    {
+      "id": "AC6",
+      "description": "Missing/invalid params (missing, non-numeric, unknown key, bad JSON, wrong content-type) return 400 JSON naming the field; no 500/traceback",
+      "met": true
+    },
+    {
+      "id": "AC7",
+      "description": "Render timeout (default 120s) returns 400 timeout message, not a hung connection",
+      "met": true
+    },
+    {
+      "id": "AC8",
+      "description": "OpenSCAD-unavailable returns 400/503 clear message; /health still 200",
+      "met": true
+    }
+  ],
+  "files_changed": [],
+  "iteration_count": 0,
+  "iterations": [],
+  "reflection_persisted": true,
+  "completed_at": "2026-06-13T11:50:00+02:00",
+  "outcomes_by_phase": {
+    "brainstorming": "pass",
+    "planning": "single-plan",
+    "challenging": "approved",
+    "testing_red": "pass",
+    "building_green": "pass",
+    "reviewing": "approved",
+    "qa": "approved",
+    "reflecting": "pass",
+    "persisting": "complete"
+  },
+  "status": "complete"
 }
