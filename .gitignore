@@ -19,5 +19,9 @@ output/*.png
 # Claude local settings (machine-specific)
 .claude/settings.local.json
 
+# Claude build pipeline artifacts (machine-local scratch, not source of truth)
+.claude/logs/
+.claude/markers/
+
 # OS
 .DS_Store
