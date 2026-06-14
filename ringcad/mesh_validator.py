@@ -7,6 +7,8 @@ returning an STL.
 """
 from __future__ import annotations
 
+import io
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, Union
@@ -19,6 +21,11 @@ MIN_WALL_MM = 0.8
 MIN_PRONG_TIP_MM = 0.7
 
 MeshLike = Union[trimesh.Trimesh, str, Path]
+
+logger = logging.getLogger(__name__)
+
+# X-Mesh-Repair-Detail is an HTTP header; keep it short and header-safe.
+_DETAIL_CAP = 200
 
 
 @dataclass(frozen=True)
@@ -76,3 +83,119 @@ def validate_mesh(obj: MeshLike) -> ValidationResult:
         volume_mm3=float(abs(mesh.volume)),
         bounds=(tuple(mesh.bounds[0]), tuple(mesh.bounds[1])),
     )
+
+
+# ===========================================================================
+# RNG-5: auto-repair
+# ===========================================================================
+
+
+@dataclass(frozen=True)
+class RepairOutcome:
+    """Result of a validate-then-repair pass over raw STL bytes.
+
+    `stl_bytes` is what the backend should return: the repaired bytes when a
+    repair pass ran and produced usable geometry, otherwise the raw input.
+    """
+
+    mesh_valid: bool
+    mesh_repaired: bool
+    detail: str
+    stl_bytes: bytes
+
+
+def _load_mesh_from_bytes(stl_bytes: bytes) -> trimesh.Trimesh:
+    """Load STL bytes into a single Trimesh (force='mesh' so multi-solid STLs
+    concatenate into one mesh with body_count > 1). Raises on failure."""
+    mesh = trimesh.load(
+        io.BytesIO(stl_bytes), file_type="stl", force="mesh"
+    )
+    if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
+        raise ValueError("empty mesh")
+    return mesh
+
+
+def repair_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+    """Conservative, in-place cleanup. Never reshapes the solid (no voxel
+    remesh, no convex hull, no mesh.process)."""
+    mesh.merge_vertices()
+    mesh.update_faces(mesh.unique_faces())
+    mesh.update_faces(mesh.nondegenerate_faces())
+    mesh.remove_unreferenced_vertices()
+    trimesh.repair.fix_winding(mesh)
+    trimesh.repair.fix_normals(mesh)
+    trimesh.repair.fill_holes(mesh)
+    return mesh
+
+
+def _build_detail(
+    before: ValidationResult, after: ValidationResult
+) -> str:
+    """Compose a header-safe, fixed-vocabulary detail string. Never
+    interpolates exception text or filesystem paths (AC9)."""
+    parts = []
+    if after.is_castable:
+        if before.non_manifold_edges > 0:
+            parts.append(f"filled {before.non_manifold_edges} holes")
+        else:
+            parts.append("merged duplicate geometry")
+    else:
+        if after.body_count > 1:
+            parts.append(
+                f"{after.body_count} disjoint bodies, not auto-repairable"
+            )
+        if not after.is_watertight:
+            parts.append("mesh not watertight after repair")
+    if not parts:
+        parts.append("merged duplicate geometry")
+    detail = "; ".join(parts)
+    return (
+        detail.encode("ascii", "ignore")
+        .decode()
+        .replace("\n", " ")
+        .replace("\r", " ")[:_DETAIL_CAP]
+    )
+
+
+def validate_and_repair(stl_bytes: bytes) -> RepairOutcome:
+    """Validate raw STL bytes and attempt conservative auto-repair if not
+    castable. NEVER raises — the backend relies on this to avoid 500s."""
+    try:
+        mesh = _load_mesh_from_bytes(stl_bytes)
+        before = validate_mesh(mesh)
+        if before.is_castable:
+            return RepairOutcome(True, False, "", stl_bytes)
+
+        repair_mesh(mesh)
+        if len(mesh.faces) == 0:
+            logger.error(
+                "mesh became empty after cleanup (before=%s)", before
+            )
+            return RepairOutcome(
+                False, True, "mesh became empty after cleanup", stl_bytes
+            )
+
+        repaired_bytes = mesh.export(file_type="stl")
+        after = validate_mesh(mesh)
+        detail = _build_detail(before, after)
+        if after.is_castable:
+            logger.warning(
+                "mesh repaired: %s (before=%s after=%s)",
+                detail,
+                before,
+                after,
+            )
+        else:
+            logger.error(
+                "repair insufficient: %s (before=%s after=%s)",
+                detail,
+                before,
+                after,
+            )
+        return RepairOutcome(after.is_castable, True, detail, repaired_bytes)
+    except ValueError:
+        logger.error("could not load mesh (empty)", exc_info=True)
+        return RepairOutcome(False, False, "empty mesh", stl_bytes)
+    except Exception:
+        logger.error("mesh validation/repair failed", exc_info=True)
+        return RepairOutcome(False, False, "could not load mesh", stl_bytes)

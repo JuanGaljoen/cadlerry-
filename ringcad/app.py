@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request
 
+from ringcad.mesh_validator import validate_and_repair
 from ringcad.params import ValidationError, validate_params
 from ringcad.render import openscad_available, render_scad
 
@@ -103,11 +104,19 @@ def create_app() -> Flask:
                 )
 
             stl_bytes = stl_path.read_bytes()
+            outcome = validate_and_repair(stl_bytes)
 
         return Response(
-            stl_bytes,
+            outcome.stl_bytes,
             mimetype="model/stl",
-            headers={"Content-Disposition": 'attachment; filename="ring.stl"'},
+            headers={
+                "Content-Disposition": 'attachment; filename="ring.stl"',
+                "X-Mesh-Valid": "true" if outcome.mesh_valid else "false",
+                "X-Mesh-Repaired": (
+                    "true" if outcome.mesh_repaired else "false"
+                ),
+                "X-Mesh-Repair-Detail": outcome.detail,
+            },
         )
 
     return app

@@ -172,6 +172,34 @@ button:focus-visible,
   color: var(--text);
 }
 
+/* Mesh status: glyph + text carry the state, never colour alone (WCAG). */
+.mesh-status {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.mesh-status--valid {
+  color: #0f7b3f;
+  background: #e8f5ec;
+  border: 2px solid #0f7b3f;
+}
+
+.mesh-status--valid::before {
+  content: "\2713 ";
+}
+
+.mesh-status--invalid {
+  color: var(--error);
+  background: var(--error-bg);
+  border: 2px solid var(--error);
+}
+
+.mesh-status--invalid::before {
+  content: "\26A0 ";
+}
+
 #stderr-text {
   white-space: pre-wrap;
   word-break: break-word;

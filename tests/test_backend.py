@@ -236,3 +236,90 @@ def test_render_fn_env_override(client, monkeypatch):
     resp = client.post("/generate-ring", json=VALID_BODY)
     assert resp.status_code == 200
     assert calls["fn"] == 48
+
+
+# ===========================================================================
+# RNG-5: mesh validation/repair headers on /generate-ring
+#
+# These reuse the established render seam (ringcad.app.render_scad /
+# ringcad.app.openscad_available) but write CRAFTED STL bytes into stl_path so
+# the real validate_and_repair runs on a known mesh shape — no mocking of
+# trimesh. They FAIL today because the endpoint emits no X-Mesh-* headers yet.
+# ===========================================================================
+import io  # noqa: E402
+
+import trimesh  # noqa: E402
+
+
+def _spy_writing(monkeypatch, stl_bytes: bytes):
+    """Like _spy, but writes the supplied STL bytes into stl_path so the
+    endpoint's validate_and_repair sees a mesh of our choosing."""
+
+    def fake_render(scad_path, stl_path, params=None, fn=None, timeout=None):
+        Path(stl_path).write_bytes(stl_bytes)
+        return RenderResult(
+            returncode=0, stdout="", stderr="",
+            stl_path=Path(stl_path), seconds=0.1, size_bytes=len(stl_bytes),
+        )
+
+    monkeypatch.setattr("ringcad.app.render_scad", fake_render)
+    monkeypatch.setattr("ringcad.app.openscad_available", lambda: True)
+
+
+def _castable_stl() -> bytes:
+    return trimesh.creation.box(extents=(3, 3, 3)).export(file_type="stl")
+
+
+def _multibody_stl() -> bytes:
+    a = trimesh.creation.box(extents=(1, 1, 1))
+    b = trimesh.creation.box(extents=(1, 1, 1))
+    b.apply_translation([5, 0, 0])
+    return trimesh.util.concatenate([a, b]).export(file_type="stl")
+
+
+# ---- AC1/AC3: castable mesh -> valid headers + RNG-2 contract preserved -----
+def test_castable_stl_sets_valid_headers(client, monkeypatch):
+    _spy_writing(monkeypatch, _castable_stl())
+    resp = client.post("/generate-ring", json=VALID_BODY)
+    assert resp.status_code == 200
+    assert resp.headers["X-Mesh-Valid"] == "true"
+    assert resp.headers["X-Mesh-Repaired"] == "false"
+    # RNG-2 contract must survive byte-for-byte
+    assert resp.headers["Content-Type"] == "model/stl"
+    assert resp.headers["Content-Disposition"] == 'attachment; filename="ring.stl"'
+    mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
+    assert len(mesh.faces) > 0
+
+
+# ---- AC3/AC5: multi-body mesh -> repaired but still invalid, body returned --
+def test_multibody_stl_sets_repaired_invalid_headers(client, monkeypatch):
+    _spy_writing(monkeypatch, _multibody_stl())
+    resp = client.post("/generate-ring", json=VALID_BODY)
+    assert resp.status_code == 200
+    assert resp.headers["X-Mesh-Repaired"] == "true"
+    assert resp.headers["X-Mesh-Valid"] == "false"
+    # AC5: download works regardless of validity -> a body is still returned
+    assert len(resp.data) > 0
+
+
+# ---- AC7/AC9: unloadable bytes -> raw passthrough, header-safe detail -------
+def test_garbage_stl_passes_through_with_safe_headers(client, monkeypatch):
+    garbage = b"not an stl at all, just bytes"
+    _spy_writing(monkeypatch, garbage)
+    resp = client.post("/generate-ring", json=VALID_BODY)
+    assert resp.status_code == 200  # AC7: endpoint never 500s on bad mesh
+    assert resp.headers["X-Mesh-Valid"] == "false"
+    assert resp.headers["X-Mesh-Repaired"] == "false"
+    assert resp.data == garbage  # raw passthrough
+    detail = resp.headers["X-Mesh-Repair-Detail"]
+    assert detail.isascii()
+    assert len(detail) <= 200
+
+
+# ---- AC1/AC3: real default-ring render -> valid headers (OpenSCAD only) -----
+@requires_openscad
+def test_real_default_ring_sets_valid_headers(client):
+    resp = client.post("/generate-ring", json=VALID_BODY)
+    assert resp.status_code == 200, resp.data
+    assert resp.headers["X-Mesh-Valid"] == "true"
+    assert resp.headers["X-Mesh-Repaired"] == "false"

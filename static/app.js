@@ -20,6 +20,7 @@ const errorMessageEl = document.getElementById("error-message");
 const stderrDetails = document.getElementById("stderr-details");
 const stderrText = document.getElementById("stderr-text");
 const downloadBtn = document.getElementById("download-btn");
+const meshStatusEl = document.getElementById("mesh-status");
 
 // Retained across generations; the viewer (RNG-4) will read these.
 let currentBlob = null;
@@ -65,7 +66,24 @@ function clearResult() {
   downloadBtn.hidden = true;
   downloadBtn.removeAttribute("href");
 
+  clearMeshStatus();
   clearFieldErrors();
+}
+
+function clearMeshStatus() {
+  meshStatusEl.hidden = true;
+  meshStatusEl.textContent = "";
+  meshStatusEl.classList.remove("mesh-status--valid", "mesh-status--invalid");
+}
+
+function renderMeshStatus(valid, repaired, detail) {
+  meshStatusEl.classList.remove("mesh-status--valid", "mesh-status--invalid");
+  meshStatusEl.classList.add(valid ? "mesh-status--valid" : "mesh-status--invalid");
+  let text = valid ? "Castable mesh" : "Not castable";
+  if (repaired) text += " (auto-repaired)";
+  if (detail) text += " — " + detail;
+  meshStatusEl.textContent = text;
+  meshStatusEl.hidden = false;
 }
 
 function showSuccess(blob) {
@@ -172,6 +190,10 @@ async function generate(event) {
     });
 
     if (res.ok) {
+      const valid = res.headers.get("X-Mesh-Valid") === "true";
+      const repaired = res.headers.get("X-Mesh-Repaired") === "true";
+      const detail = res.headers.get("X-Mesh-Repair-Detail") || "";
+      renderMeshStatus(valid, repaired, detail);
       const blob = await res.blob();
       showSuccess(blob);
     } else {

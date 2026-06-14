@@ -281,6 +281,31 @@ def test_import_map_specifiers(body):
     ), '"three/addons/" must map to /static/vendor/three/addons/'
 
 
+# ---- RNG-5 AC4 structural: mesh-status indicator above the download button -
+def test_mesh_status_above_download(body):
+    """The #mesh-status indicator must exist as a live region and sit ABOVE
+    #download-btn in source order.
+
+    SCOPE: static shell only. The header-driven green/red rendering and the
+    'download still works when mesh is invalid' behavior are JS-runtime
+    concerns verified in the browser-QA phase, NOT here (no JS runs in the
+    Flask test client).
+    """
+    status = re.search(r'<[^>]*id\s*=\s*"mesh-status"[^>]*>', body, re.IGNORECASE)
+    assert status, "no element with id=mesh-status"
+    tag = status.group(0)
+    assert re.search(r'role\s*=\s*"status"', tag, re.IGNORECASE), (
+        "#mesh-status must carry role=status"
+    )
+    assert re.search(r'aria-live\s*=\s*"polite"', tag, re.IGNORECASE), (
+        "#mesh-status must carry aria-live=polite"
+    )
+    # source order: mesh-status appears before the download button
+    assert body.index('id="mesh-status"') < body.index('id="download-btn"'), (
+        "#mesh-status must appear ABOVE #download-btn"
+    )
+
+
 # ---- RNG-4 AC10 static: vendored three files are actually served -----------
 def test_vendored_three_served(client):
     for path in (
