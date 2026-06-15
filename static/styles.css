@@ -238,3 +238,28 @@ button:focus-visible,
     height: 320px;
   }
 }
+
+/* Photo upload (RNG-6) */
+.photo-upload {
+  margin-bottom: 1.25rem;
+}
+
+.photo-status,
+.photo-detections {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.estimates-label {
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid currentColor;
+  font-weight: 600;
+}
+
+.estimates-label::before {
+  content: "ⓘ ";
+  font-weight: 400;
+}
+

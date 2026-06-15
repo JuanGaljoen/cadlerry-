@@ -203,6 +203,7 @@ def test_no_js_framework(body):
         allowed = (
             low.endswith("app.js")
             or low.endswith("viewer.js")
+            or low.endswith("photo.js")
             or "/static/vendor/three/" in low
         )
         assert allowed, (

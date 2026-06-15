@@ -6,6 +6,7 @@
   <title>Ring CAD — Parametric Solitaire Ring Generator</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='photo.js') }}"></script>
   <script type="importmap">{ "imports": { "three": "/static/vendor/three/three.module.js", "three/addons/": "/static/vendor/three/addons/" } }</script>
   <script type="module" src="{{ url_for('static', filename='viewer.js') }}"></script>
 </head>
@@ -19,6 +20,23 @@
     <section class="panel form-panel" aria-labelledby="form-heading">
       <h2 id="form-heading">Ring parameters</h2>
       <form id="ring-form" novalidate-hint="native validation enabled">
+        <fieldset class="photo-upload">
+          <legend>Start from a photo (optional)</legend>
+          <div class="field">
+            <label for="ring-photo">Ring photo</label>
+            <input type="file" id="ring-photo" name="image"
+                   accept="image/jpeg,image/png"
+                   aria-describedby="ring-photo-hint" />
+            <span class="hint" id="ring-photo-hint">JPEG or PNG. Estimates pre-fill the form below.</span>
+          </div>
+          <div class="actions">
+            <button type="button" id="estimate-btn">Estimate from photo</button>
+          </div>
+          <p id="photo-status" class="photo-status" role="status" aria-live="polite"></p>
+          <p id="photo-detections" class="photo-detections" aria-live="polite" hidden></p>
+          <p id="estimates-label" class="estimates-label" role="note" hidden>Estimates only, verify before generating.</p>
+        </fieldset>
+
         <fieldset>
           <legend>Dimensions (mm)</legend>
 
