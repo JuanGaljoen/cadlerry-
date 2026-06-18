@@ -20,16 +20,24 @@ for lost-wax casting.
   estimates parameters to pre-fill the form. Works without an API key (the
   feature degrades gracefully to manual entry).
 
+## Screenshots
+
+![Ring CAD app overview](docs/screenshots/app-overview.png)
+
+## Architecture
+
+![Ring CAD architecture diagram](docs/screenshots/architecture.png)
+
 ## Stack
 
-| Layer | Tech |
-|-------|------|
-| Geometry | OpenSCAD (parametric `.scad`, headless CLI) |
-| Backend | Python + Flask (`subprocess` to OpenSCAD) |
-| Mesh validation | trimesh (watertight check + auto-repair) |
-| Frontend | Single HTML page, vanilla JS (no frameworks) |
-| 3D preview | Three.js + OrbitControls (vendored, no CDN) |
-| Photo classification | Claude vision API (Haiku 4.5) |
+| Layer                | Tech                                         |
+| -------------------- | -------------------------------------------- |
+| Geometry             | OpenSCAD (parametric `.scad`, headless CLI)  |
+| Backend              | Python + Flask (`subprocess` to OpenSCAD)    |
+| Mesh validation      | trimesh (watertight check + auto-repair)     |
+| Frontend             | Single HTML page, vanilla JS (no frameworks) |
+| 3D preview           | Three.js + OrbitControls (vendored, no CDN)  |
+| Photo classification | Claude vision API (Haiku 4.5)                |
 
 ## Requirements
 
@@ -63,13 +71,13 @@ preview and download the STL.
 
 ## Configuration (environment variables)
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `OPENSCAD_BIN` | `openscad` | Path to the OpenSCAD binary |
-| `RENDER_FN` | `24` | OpenSCAD `$fn` (smoothness vs. render time) |
-| `RENDER_TIMEOUT` | `120` | Max render seconds before a 400 timeout |
-| `ANTHROPIC_API_KEY` | _(unset)_ | Enables photo classification. **Optional** — without it, photo upload returns a graceful "enter parameters manually" message. |
-| `CLASSIFY_MODEL` | `claude-haiku-4-5` | Claude model used for photo classification |
+| Variable            | Default            | Purpose                                                                                                                       |
+| ------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `OPENSCAD_BIN`      | `openscad`         | Path to the OpenSCAD binary                                                                                                   |
+| `RENDER_FN`         | `24`               | OpenSCAD `$fn` (smoothness vs. render time)                                                                                   |
+| `RENDER_TIMEOUT`    | `120`              | Max render seconds before a 400 timeout                                                                                       |
+| `ANTHROPIC_API_KEY` | _(unset)_          | Enables photo classification. **Optional** — without it, photo upload returns a graceful "enter parameters manually" message. |
+| `CLASSIFY_MODEL`    | `claude-haiku-4-5` | Claude model used for photo classification                                                                                    |
 
 The Anthropic key is read server-side only and is never sent to the browser. To
 enable photo classification, add it to a local `.env` file (gitignored):
@@ -80,14 +88,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## Ring parameters
 
-| Parameter | Notes |
-|-----------|-------|
-| `inner_diameter` | Finger size (mm) |
-| `band_width` | Shank width (mm) |
-| `band_thickness` | Shank thickness (mm, >= 0.8) |
-| `stone_diameter` | Stone seat sizing (mm) |
-| `stone_height` | Stone height (mm) |
-| `prong_count` | 4 or 6 only |
+| Parameter        | Notes                         |
+| ---------------- | ----------------------------- |
+| `inner_diameter` | Finger size (mm)              |
+| `band_width`     | Shank width (mm)              |
+| `band_thickness` | Shank thickness (mm, >= 0.8)  |
+| `stone_diameter` | Stone seat sizing (mm)        |
+| `stone_height`   | Stone height (mm)             |
+| `prong_count`    | 4 or 6 only                   |
 | `setting_height` | Gallery / setting height (mm) |
 
 Defaults and sane ranges live in `docs/parameter-ranges.md`. Out-of-range values
@@ -95,12 +103,12 @@ still render a castable mesh (clamped by construction).
 
 ## API
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | The single-page app |
-| `GET /health` | `{"status": "ok"}` |
+| Endpoint              | Description                                                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /`               | The single-page app                                                                                                                   |
+| `GET /health`         | `{"status": "ok"}`                                                                                                                    |
 | `POST /generate-ring` | Accepts the 7 params as JSON; returns a binary STL (`model/stl`) with `X-Mesh-Valid` / `X-Mesh-Repaired` headers, or a 400 JSON error |
-| `POST /classify-ring` | Accepts an image (multipart `image`); returns Claude vision estimates, or 503 if no API key is configured |
+| `POST /classify-ring` | Accepts an image (multipart `image`); returns Claude vision estimates, or 503 if no API key is configured                             |
 
 Example:
 
