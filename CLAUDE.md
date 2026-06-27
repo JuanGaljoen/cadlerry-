@@ -1,17 +1,52 @@
 # Ring CAD App
 
-Parametric solitaire ring generator. Users enter ring parameters (or upload a
-photo), the app generates a watertight 3D model via OpenSCAD, validates the mesh,
-previews it in the browser, and exports a clean STL ready for lost-wax casting.
+Jewelry ring generator working toward one end goal: **upload any ring photo (or
+enter parameters) and get a castable 3D model.** The app turns input into a
+structured ring spec, generates a watertight 3D model, validates the mesh,
+previews it in the browser, and exports a clean STL (and STEP) ready for lost-wax
+casting. The solitaire is the first supported archetype, not the end goal; the
+roadmap widens archetype coverage toward "any ring."
 
 ## Stack
 
-- **Geometry:** OpenSCAD (parametric `.scad` template, headless via CLI)
-- **Backend:** Python + Flask, calls OpenSCAD via `subprocess`
-- **Mesh validation:** Trimesh (watertight check + auto-repair)
-- **Frontend:** Single HTML page, vanilla JS only (no frameworks)
-- **3D preview:** Three.js with OrbitControls
-- **AI:** Claude API vision for photo-based ring classification
+- **Geometry kernel:** **build123d** (in-process Python, OpenCASCADE B-rep) —
+  **migrating from OpenSCAD** (RNG-13 spike → RNG-15 cutover). B-rep gives us
+  `shell()` (real 3D wall-thickness enforcement), `fillet`/`sweep`/`loft`, curved
+  surfaces, in-kernel geometry introspection, and STEP export — the capabilities
+  OpenSCAD CSG cannot provide and that "any ring" requires.
+- **IR / contract:** **RingSpec** — versioned, typed schema between the vision
+  layer and the geometry layer; what the user edits; where castability rules
+  validate (RNG-14).
+- **Backend:** Python + Flask.
+- **Castability gate:** Trimesh (watertight check + auto-repair) plus in-kernel
+  `shell`/thickness checks on the B-rep.
+- **Frontend:** Single HTML page, vanilla JS only (no frameworks).
+- **3D preview:** Three.js with OrbitControls.
+- **AI:** Claude API vision — photo → RingSpec (archetype, stone layout, shank
+  profile, motifs, per-element dimensions, per-field confidence).
+
+> **Legacy note:** OpenSCAD (`scad/solitaire.scad`, subprocess CLI) is the
+> current shipping path and remains source of truth until RNG-15 proves parity
+> and cuts over. Do not extend the `.scad` path; new geometry work targets
+> build123d.
+
+## Architecture (Path C: photo → castable model)
+
+Five layers with one load-bearing artifact (RingSpec) in the middle:
+
+1. **Vision / Understanding** — photo → RingSpec (Claude vision).
+2. **RingSpec (the contract)** — versioned, typed; both sides evolve against it
+   independently; carries castability validation rules.
+3. **Procedural geometry** — RingSpec → geometry via a **library of composable
+   modules** on build123d (`shank`, `prong_setting`, `seat`, `bezel`, …), each
+   parametric and each emitting castable geometry.
+4. **Castability gate** — `shell`/thickness, manifold, min-feature checks; much
+   of it now in-kernel by construction.
+5. **Export** — STEP (CAD interchange) + STL (print/preview).
+
+**Core principle:** archetypes are **compositions of modules over a shared
+spec, not monolithic templates.** Progress toward "any ring" = growing the
+module vocabulary and composition rules, not piling up per-style templates.
 
 ## Casting Requirements (lost-wax)
 
@@ -23,7 +58,11 @@ These are hard manufacturing constraints, enforced in geometry, not just UI hint
 - Exported STL must have **zero non-manifold edges**
 - Mesh validated after every generation; auto-repair attempted if not watertight
 
-## Ring Parameters (7)
+## Solitaire Parameters (7)
+
+These 7 parameters are the **solitaire archetype's slice of RingSpec** — the
+first archetype, not the whole input model. RingSpec (RNG-14) generalizes beyond
+these as archetypes are added.
 
 | Parameter        | Notes                          |
 |------------------|--------------------------------|
@@ -35,7 +74,9 @@ These are hard manufacturing constraints, enforced in geometry, not just UI hint
 | `prong_count`    | **4 or 6 only** (dropdown)     |
 | `setting_height` | Gallery/setting height (mm)    |
 
-OpenSCAD modules: `shank()`, `gallery()`, `prongs()`, `seat()` -> unioned.
+Modules (build123d, post-migration): `shank()`, `prong_setting()`, `seat()`
+composed into a single watertight manifold. (Legacy OpenSCAD modules:
+`shank()`, `gallery()`, `prongs()`, `seat()` -> unioned.)
 
 ## UI Design Specs
 
@@ -58,11 +99,13 @@ OpenSCAD modules: `shank()`, `gallery()`, `prongs()`, `seat()` -> unioned.
 
 ## API Endpoints
 
-- `POST /generate-ring` - accepts all 7 params as JSON, returns binary STL on
-  success, OpenSCAD stderr + 400 on failure. Handles missing/invalid params.
+- `POST /generate-ring` - accepts a RingSpec (currently the 7 solitaire params)
+  as JSON, returns binary STL on success (STEP export to follow with build123d),
+  geometry stderr + 400 on failure. Handles missing/invalid params.
 - `GET /health` - returns `{"status": "ok"}`.
 - `POST /classify-ring` - accepts an image, returns Claude vision estimates
-  (style, prong count, shank taper, features) + estimated dimensions.
+  toward a RingSpec (style/archetype, prong count, shank taper, features) +
+  estimated dimensions.
 
 ## Commands
 
@@ -88,27 +131,48 @@ Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
 
 ## Tickets (Jira project: RNG)
 
-Dependency-ordered (`Blocks` links in Jira):
+**Done (base app, OpenSCAD path):**
 
-- **RNG-1** OpenSCAD parametric solitaire ring template [foundation, Highest]
-- **RNG-2** Flask backend with STL generation endpoint [backend, Highest] - needs RNG-1
-- **RNG-3** Vanilla JS frontend with ring parameter form [frontend, Medium] - needs RNG-2
-- **RNG-4** Three.js STL viewer with orbit controls [frontend, Medium] - needs RNG-3
-- **RNG-5** Trimesh mesh validation and auto-repair [backend, Medium] - needs RNG-2
-- **RNG-6** Photo upload with Claude vision ring classification [backend, frontend, Low] - needs RNG-3
+- **RNG-1** OpenSCAD parametric solitaire ring template [Done]
+- **RNG-2** Flask backend with STL generation endpoint [Done]
+- **RNG-3** Vanilla JS frontend with ring parameter form [Done]
+- **RNG-4** Three.js STL viewer with orbit controls [Done]
+- **RNG-5** Trimesh mesh validation and auto-repair [Done]
+- **RNG-6** Photo upload with Claude vision ring classification [Done]
+
+**Foundation (build123d + RingSpec pivot — dependency-ordered):**
+
+- **RNG-13** Spike: build123d proof-of-parity for the solitaire [Highest] - gates everything
+- **RNG-14** RingSpec v1: structured ring IR / schema [Highest] - needs RNG-13 (GO)
+- **RNG-15** Geometry kernel migration OpenSCAD -> build123d (solitaire cutover) [Highest] - needs RNG-13, RNG-14
+- **RNG-16** Procedural module library foundation (shank/prong_setting/seat/bezel) [High] - needs RNG-15
+
+**Archetypes + vision (module compositions over RingSpec):**
+
+- **RNG-9** Halo ring style [Medium] - needs RNG-16
+- **RNG-10** Three-stone (Trilogy) ring style [Medium] - needs RNG-16
+- **RNG-11** Side-stone band (channel/pave) [Medium] - needs RNG-16
+- **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16
+
+> Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
+> (style registry over OpenSCAD) were deleted — both are superseded by the
+> RingSpec + module-library foundation.
 
 ## Current Phase
 
-**RNG-1 - OpenSCAD parametric solitaire ring template.**
+**RNG-13 - Spike: build123d proof-of-parity for the solitaire.**
 
-Build the parametric `.scad` template. Acceptance criteria:
+Validate build123d as the replacement geometry kernel before committing to the
+migration. Binary outcome: parity holds or it does not. Acceptance criteria:
 
-- Separate modules: `shank()`, `gallery()`, `prongs()`, `seat()`
-- All 7 parameters wired through
-- Min wall thickness 0.8mm and min prong tip 0.7mm enforced throughout
-- All modules union into a single watertight manifold
-- Geometry updates correctly when any parameter changes
-- Exports clean STL with zero non-manifold edges
+- build123d reproduces the solitaire: bbox, volume, manifold status match the
+  OpenSCAD STL within tolerance (characterization comparison).
+- `shell()` cleanly enforces the 0.8mm min wall on a deliberately thin test
+  profile (castability by construction).
+- Exports a clean STL (zero non-manifold edges) AND a valid STEP file.
+- Written go / no-go recommendation on adopting build123d as the kernel.
+
+If GO: proceed RNG-14 (RingSpec) -> RNG-15 (cutover) -> RNG-16 (module library).
 
 ## Jira Ticket Lifecycle (orchestrator-run, Stop-verified)
 - When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira, then set `jira_in_progress: true` in `.claude/logs/build_session.json`.
