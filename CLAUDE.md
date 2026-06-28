@@ -10,8 +10,8 @@ roadmap widens archetype coverage toward "any ring."
 ## Stack
 
 - **Geometry kernel:** **build123d** (in-process Python, OpenCASCADE B-rep) —
-  **migrating from OpenSCAD** (RNG-13 spike → RNG-15 cutover). B-rep gives us
-  `shell()` (real 3D wall-thickness enforcement), `fillet`/`sweep`/`loft`, curved
+  **the shipping kernel** as of RNG-15 (OpenSCAD cut over and removed). B-rep gives
+  us `shell()` (real 3D wall-thickness enforcement), `fillet`/`sweep`/`loft`, curved
   surfaces, in-kernel geometry introspection, and STEP export — the capabilities
   OpenSCAD CSG cannot provide and that "any ring" requires.
 - **IR / contract:** **RingSpec** — versioned, typed schema between the vision
@@ -25,10 +25,11 @@ roadmap widens archetype coverage toward "any ring."
 - **AI:** Claude API vision — photo → RingSpec (archetype, stone layout, shank
   profile, motifs, per-element dimensions, per-field confidence).
 
-> **Legacy note:** OpenSCAD (`scad/solitaire.scad`, subprocess CLI) is the
-> current shipping path and remains source of truth until RNG-15 proves parity
-> and cuts over. Do not extend the `.scad` path; new geometry work targets
-> build123d.
+> **Migration note:** OpenSCAD (`scad/solitaire.scad`, `ringcad/render.py`,
+> subprocess CLI) was removed in RNG-15 — `/generate-ring` now generates the
+> solitaire in-process via build123d driven by RingSpec. The geometry lives in
+> `ringcad/geometry/` (`shank`/`prong_setting`/`seat` + `build_solitaire` + STL/STEP
+> export). The RNG-13 spike code under `spikes/rng13/` is retained for reference.
 
 ## Architecture (Path C: photo → castable model)
 
@@ -74,9 +75,8 @@ these as archetypes are added.
 | `prong_count`    | **4 or 6 only** (dropdown)     |
 | `setting_height` | Gallery/setting height (mm)    |
 
-Modules (build123d, post-migration): `shank()`, `prong_setting()`, `seat()`
-composed into a single watertight manifold. (Legacy OpenSCAD modules:
-`shank()`, `gallery()`, `prongs()`, `seat()` -> unioned.)
+Modules (build123d, `ringcad/geometry/`): `shank()`, `prong_setting()`, `seat()`
+composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## UI Design Specs
 
@@ -99,9 +99,11 @@ composed into a single watertight manifold. (Legacy OpenSCAD modules:
 
 ## API Endpoints
 
-- `POST /generate-ring` - accepts a RingSpec (currently the 7 solitaire params)
-  as JSON, returns binary STL on success (STEP export to follow with build123d),
-  geometry stderr + 400 on failure. Handles missing/invalid params.
+- `POST /generate-ring` - accepts the 7 solitaire params as JSON (validated +
+  adapted through RingSpec), returns binary STL on success with `X-Mesh-*` headers;
+  `?format=step` returns STEP (`model/step`). Castability violations and malformed
+  input return a 400 JSON error naming the field. Geometry built in-process via
+  build123d.
 - `GET /health` - returns `{"status": "ok"}`.
 - `POST /classify-ring` - accepts an image, returns Claude vision estimates
   toward a RingSpec (style/archetype, prong count, shank taper, features) +
@@ -142,9 +144,9 @@ Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
 
 **Foundation (build123d + RingSpec pivot — dependency-ordered):**
 
-- **RNG-13** Spike: build123d proof-of-parity for the solitaire [Highest] - gates everything
-- **RNG-14** RingSpec v1: structured ring IR / schema [Highest] - needs RNG-13 (GO)
-- **RNG-15** Geometry kernel migration OpenSCAD -> build123d (solitaire cutover) [Highest] - needs RNG-13, RNG-14
+- **RNG-13** Spike: build123d proof-of-parity for the solitaire [Done]
+- **RNG-14** RingSpec v1: structured ring IR / schema [Done]
+- **RNG-15** Geometry kernel migration OpenSCAD -> build123d (solitaire cutover) [In Review] - needs RNG-13, RNG-14
 - **RNG-16** Procedural module library foundation (shank/prong_setting/seat/bezel) [High] - needs RNG-15
 
 **Archetypes + vision (module compositions over RingSpec):**
@@ -160,19 +162,19 @@ Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
 
 ## Current Phase
 
-**RNG-13 - Spike: build123d proof-of-parity for the solitaire.**
+**RNG-15 - Geometry kernel cutover OpenSCAD -> build123d (In Review).**
 
-Validate build123d as the replacement geometry kernel before committing to the
-migration. Binary outcome: parity holds or it does not. Acceptance criteria:
+The foundation is in: RNG-13 (spike, GO) and RNG-14 (RingSpec v1) are Done.
+RNG-15 routed `/generate-ring` through an in-process build123d generator driven by
+RingSpec, decomposed the solitaire into `shank`/`prong_setting`/`seat` modules
+(`ringcad/geometry/`), exposed STEP via `?format=step`, and removed the OpenSCAD
+subprocess path (`scad/`, `ringcad/render.py`) plus `params.py`'s hand-rolled
+validation. Parity held within RNG-13 tolerances; full suite green.
 
-- build123d reproduces the solitaire: bbox, volume, manifold status match the
-  OpenSCAD STL within tolerance (characterization comparison).
-- `shell()` cleanly enforces the 0.8mm min wall on a deliberately thin test
-  profile (castability by construction).
-- Exports a clean STL (zero non-manifold edges) AND a valid STEP file.
-- Written go / no-go recommendation on adopting build123d as the kernel.
-
-If GO: proceed RNG-14 (RingSpec) -> RNG-15 (cutover) -> RNG-16 (module library).
+**Next: RNG-16** - formalize the generic module interface (each module consumes its
+RingSpec slice), add the `bezel` module + composition layer, and drive raw
+non-manifold edges to zero by construction. Then archetypes (RNG-9/10/11) +
+vision->RingSpec population (RNG-12).
 
 ## Jira Ticket Lifecycle (orchestrator-run, Stop-verified)
 - When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira, then set `jira_in_progress: true` in `.claude/logs/build_session.json`.
