@@ -1,31 +1,20 @@
-"""Flask app exposing the STL generation endpoint (RNG-2).
+"""Flask app exposing the ring generation endpoint (RNG-2, RNG-15).
 
-`render_scad`/`openscad_available` are imported into this module's namespace so
-tests can patch them at `ringcad.app.*` (where they are looked up).
+`/generate-ring` builds the solitaire in-process via build123d driven by
+RingSpec. The geometry/export functions are imported into this module's
+namespace so tests can patch them at `ringcad.app.*` (where they are looked up).
 """
 from __future__ import annotations
-
-import os
-import subprocess
-import tempfile
-from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request
 
 from ringcad.classify import classify_available, classify_ring
+from ringcad.geometry import build_solitaire, to_step_bytes, to_stl_bytes
 from ringcad.mesh_validator import validate_and_repair
 from ringcad.params import ValidationError, validate_params
-from ringcad.render import openscad_available, render_scad
+from ringcad.ringspec import from_params, validate_castability
 
-SCAD_PATH = Path(__file__).resolve().parents[1] / "scad" / "solitaire.scad"
-
-
-def _render_fn() -> int:
-    return int(os.environ.get("RENDER_FN", "24"))
-
-
-def _render_timeout() -> float:
-    return float(os.environ.get("RENDER_TIMEOUT", "120"))
+_SUPPORTED_FORMATS = ("stl", "step")
 
 
 def _validation_response(error: str, detail: str = "", field=None):
@@ -68,53 +57,56 @@ def create_app() -> Flask:
         except ValidationError as exc:
             return _validation_response(exc.error, exc.detail, exc.field)
 
-        if not openscad_available():
+        spec = from_params(params)
+
+        violations = validate_castability(spec)
+        if violations:
+            first = violations[0]
             return (
                 jsonify(
                     {
-                        "error": "OpenSCAD is not available",
-                        "detail": "openscad binary not found on PATH",
+                        "error": "Not castable",
+                        "detail": first.message,
+                        "field": first.field,
+                        "violations": [v.model_dump() for v in violations],
                     }
                 ),
-                503,
+                400,
             )
 
-        timeout = _render_timeout()
-        with tempfile.TemporaryDirectory() as td:
-            stl_path = Path(td) / "ring.stl"
-            try:
-                result = render_scad(
-                    SCAD_PATH,
-                    stl_path,
-                    params=params,
-                    fn=_render_fn(),
-                    timeout=timeout,
-                )
-            except subprocess.TimeoutExpired:
-                return (
-                    jsonify(
-                        {
-                            "error": "Render timed out",
-                            "detail": f"exceeded {timeout}s",
-                        }
-                    ),
-                    400,
-                )
+        fmt = request.args.get("format", "stl").lower()
+        if fmt not in _SUPPORTED_FORMATS:
+            return _validation_response(
+                "Unsupported format",
+                f"format must be one of: {', '.join(_SUPPORTED_FORMATS)}",
+                "format",
+            )
 
-            if not result.ok:
-                return (
-                    jsonify(
-                        {
-                            "error": "OpenSCAD render failed",
-                            "openscad_stderr": result.stderr,
-                        }
-                    ),
-                    400,
-                )
+        try:
+            solid = build_solitaire(spec)
+        except Exception as exc:  # noqa: BLE001 — surface any kernel failure as 400
+            return (
+                jsonify(
+                    {
+                        "error": "Geometry generation failed",
+                        "detail": str(exc),
+                    }
+                ),
+                400,
+            )
 
-            stl_bytes = stl_path.read_bytes()
-            outcome = validate_and_repair(stl_bytes)
+        if fmt == "step":
+            data = to_step_bytes(solid)
+            return Response(
+                data,
+                mimetype="model/step",
+                headers={
+                    "Content-Disposition": 'attachment; filename="ring.step"',
+                },
+            )
 
+        raw = to_stl_bytes(solid)
+        outcome = validate_and_repair(raw)
         return Response(
             outcome.stl_bytes,
             mimetype="model/stl",
