@@ -87,3 +87,40 @@ def test_to_step_bytes_is_iso_10303(spec):
     assert isinstance(data, bytes)
     assert len(data) > 0
     assert b"ISO-10303" in data[:512]
+
+
+# === RNG-16 AC1: module registry conforms to the Module protocol =============
+# Local imports so the RNG-15 tests above stay green; these RED until RNG-16's
+# `ringcad.geometry.module` (Module protocol + MODULES registry) lands.
+EXPECTED_MODULE_NAMES = {"shank", "seat", "prong_setting", "bezel"}
+
+
+def test_expected_modules_registered():
+    """Every foundation module is registered in MODULES by name (AC1)."""
+    from ringcad.geometry import MODULES
+
+    assert EXPECTED_MODULE_NAMES <= set(MODULES.keys()), (
+        f"MODULES missing {EXPECTED_MODULE_NAMES - set(MODULES.keys())}"
+    )
+
+
+def test_all_modules_conform_to_protocol():
+    """Each registered module satisfies the runtime_checkable Module protocol:
+    has a `name`, and callable `build` / `check` (AC1)."""
+    from ringcad.geometry import MODULES, Module
+
+    assert MODULES, "MODULES registry is empty"
+    for key, module in MODULES.items():
+        assert isinstance(module, Module), f"{key} is not a Module"
+        assert hasattr(module, "name"), f"{key} has no .name"
+        assert isinstance(module.name, str) and module.name, f"{key} bad .name"
+        assert callable(getattr(module, "build", None)), f"{key}.build not callable"
+        assert callable(getattr(module, "check", None)), f"{key}.check not callable"
+
+
+def test_module_name_matches_registry_key():
+    """A module's own `.name` matches the key it is registered under (AC1)."""
+    from ringcad.geometry import MODULES
+
+    for key, module in MODULES.items():
+        assert module.name == key, f"{key} registered under mismatched name {module.name!r}"
