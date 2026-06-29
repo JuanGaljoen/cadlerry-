@@ -5,7 +5,19 @@ Decomposed module library — `shank`, `prong_setting`, `seat` — composed by
 RNG-13 spike so OpenSCAD parity holds; casting constants come from
 `ringcad.mesh_validator`.
 """
+from .bezel import bezel
 from .export import to_step_bytes, to_stl_bytes
+from .module import (
+    ARCHETYPES,
+    MODULES,
+    ComposeError,
+    DegenerateModuleError,
+    Module,
+    SimpleModule,
+    UnknownArchetypeError,
+    UnregisteredModuleError,
+    compose,
+)
 from .prong_setting import prong_setting
 from .seat import seat
 from .shank import shank
@@ -13,9 +25,19 @@ from .solitaire import build_solitaire
 
 __all__ = [
     "build_solitaire",
+    "compose",
     "shank",
     "prong_setting",
     "seat",
+    "bezel",
     "to_stl_bytes",
     "to_step_bytes",
+    "MODULES",
+    "ARCHETYPES",
+    "Module",
+    "SimpleModule",
+    "ComposeError",
+    "UnknownArchetypeError",
+    "UnregisteredModuleError",
+    "DegenerateModuleError",
 ]

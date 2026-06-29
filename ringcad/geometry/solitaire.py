@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from ringcad.ringspec import RingSpec
 
-from .prong_setting import prong_setting
-from .seat import seat
-from .shank import shank
+from .module import compose
 
 
 def build_solitaire(spec: RingSpec):
-    """RingSpec (solitaire-7) → one watertight build123d solid."""
-    solids = [shank(spec), prong_setting(spec), seat(spec)]
-    return solids[0].fuse(*solids[1:])
+    """RingSpec (solitaire-7) → one watertight build123d solid.
+
+    Thin wrapper over the module library: composes the "solitaire" archetype
+    (shank + seat + prong_setting). Boolean union is commutative and the mesh
+    repair gate absorbs seam differences, so parity with the RNG-15 batch fuse
+    holds.
+    """
+    return compose(spec)

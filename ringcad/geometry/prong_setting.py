@@ -16,9 +16,9 @@ from ._common import (
 )
 
 
-def prong_setting(spec: RingSpec):
+def prong_setting(spec: RingSpec, c: dict | None = None):
     """Gallery peg + claws for a RingSpec → one fused build123d solid."""
-    c = clamps(spec)
+    c = c if c is not None else clamps(spec)
     stone_r, ring_z, claw_rise = c["stone_r"], c["ring_z"], c["claw_rise"]
     wire_r = max(MIN_WALL / 2 + 0.1, 0.5)
     tip_r = max(MIN_PRONG_TIP / 2, 0.4)

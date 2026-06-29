@@ -13,9 +13,9 @@ from ringcad.ringspec import RingSpec
 from ._common import MIN_WALL, clamps, placement
 
 
-def seat(spec: RingSpec):
+def seat(spec: RingSpec, c: dict | None = None):
     """Seat ring torus for a RingSpec → one build123d solid."""
-    c = clamps(spec)
+    c = c if c is not None else clamps(spec)
     stone_r, ring_z = c["stone_r"], c["ring_z"]
     collar_tr = max(MIN_WALL / 2, 0.45)
     local = Pos(0, 0, ring_z) * Torus(stone_r, collar_tr)
