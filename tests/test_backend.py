@@ -274,3 +274,15 @@ def test_real_default_ring_produces_valid_stl(client):
     assert len(resp.data) > 1024
     mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
     assert len(mesh.faces) > 0
+
+
+# ---- RNG-17 AC3: real generation is watertight WITHOUT repair --------------
+def test_real_default_ring_is_watertight_without_repair(client):
+    """The canonical ring's raw geometry must already be a watertight manifold,
+    so the endpoint marks it valid AND reports no repair was needed. FAILS now:
+    the tangent claw joints leave open edges, so validate_and_repair welds them
+    and X-Mesh-Repaired comes back 'true'."""
+    resp = client.post("/generate-ring", json=VALID_BODY)
+    assert resp.status_code == 200, resp.data
+    assert resp.headers["X-Mesh-Valid"] == "true"
+    assert resp.headers["X-Mesh-Repaired"] == "false"
