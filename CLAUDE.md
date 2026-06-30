@@ -146,15 +146,19 @@ Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
 
 - **RNG-13** Spike: build123d proof-of-parity for the solitaire [Done]
 - **RNG-14** RingSpec v1: structured ring IR / schema [Done]
-- **RNG-15** Geometry kernel migration OpenSCAD -> build123d (solitaire cutover) [In Review] - needs RNG-13, RNG-14
-- **RNG-16** Procedural module library foundation (shank/prong_setting/seat/bezel) [High] - needs RNG-15
+- **RNG-15** Geometry kernel migration OpenSCAD -> build123d (solitaire cutover) [Done] - needs RNG-13, RNG-14
+- **RNG-16** Procedural module library foundation (shank/prong_setting/seat/bezel) [Done] - needs RNG-15
 
-**Archetypes + vision (module compositions over RingSpec):**
+**Castability hardening (pay down deferred by-construction debt before detail-heavy archetypes):**
 
-- **RNG-9** Halo ring style [Medium] - needs RNG-16
-- **RNG-10** Three-stone (Trilogy) ring style [Medium] - needs RNG-16
-- **RNG-11** Side-stone band (channel/pave) [Medium] - needs RNG-16
-- **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16
+- **RNG-17** Watertight by construction (eliminate auto-repair reliance) [High] - needs RNG-16, blocks RNG-9
+
+**Archetypes + vision (module compositions over RingSpec — built "the right way", no shortcuts):**
+
+- **RNG-9** Halo ring style — real per-accent settings (not a shared-collar shortcut) [Medium] - needs RNG-17
+- **RNG-10** Three-stone (Trilogy) ring style [Medium] - needs RNG-9 machinery
+- **RNG-11** Side-stone band (channel/pave) [Medium] - needs RNG-17, RNG-9
+- **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16; most valuable last, on the full catalog
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
@@ -162,19 +166,26 @@ Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
 
 ## Current Phase
 
-**RNG-15 - Geometry kernel cutover OpenSCAD -> build123d (In Review).**
+**Foundation complete. Next: RNG-17 - Watertight by construction.**
 
-The foundation is in: RNG-13 (spike, GO) and RNG-14 (RingSpec v1) are Done.
-RNG-15 routed `/generate-ring` through an in-process build123d generator driven by
-RingSpec, decomposed the solitaire into `shank`/`prong_setting`/`seat` modules
-(`ringcad/geometry/`), exposed STEP via `?format=step`, and removed the OpenSCAD
-subprocess path (`scad/`, `ringcad/render.py`) plus `params.py`'s hand-rolled
-validation. Parity held within RNG-13 tolerances; full suite green.
+Done and merged: RNG-13 (spike, GO), RNG-14 (RingSpec v1), RNG-15 (kernel cutover
+to build123d), RNG-16 (module library: `Module` Protocol + `MODULES`/`ARCHETYPES`
+registry + `compose()` + `bezel` + per-module in-kernel castability self-checks).
+`/generate-ring` builds the solitaire via `compose(spec)`; full suite green (3054).
 
-**Next: RNG-16** - formalize the generic module interface (each module consumes its
-RingSpec slice), add the `bezel` module + composition layer, and drive raw
-non-manifold edges to zero by construction. Then archetypes (RNG-9/10/11) +
-vision->RingSpec population (RNG-12).
+**Deliberate debt being paid down next:** RNG-15 and RNG-16 both deferred true
+"watertight by construction" - raw geometry still relies on the RNG-5 auto-repair
+mesh gate (QA saw ~8-12 holes filled per solitaire). We chose to build the
+archetypes "the right way" (real per-accent halo settings, real pave beads), which
+means many sub-0.7mm features fused into one body - more than conservative repair
+can be trusted to fix. So **RNG-17 makes geometry castable by construction first**
+(shell/offset, clean fuse; raw STL watertight pre-repair; `X-Mesh-Repaired: false`
+on canonical inputs), building on RNG-16's per-module self-checks.
+
+**Then, in order:** RNG-9 (halo, real per-accent settings) -> RNG-10 (trilogy) ->
+RNG-11 (side-stone/pave) -> RNG-12 (vision -> RingSpec dispatch, last, pointing at
+the full archetype catalog). Each archetype is a new composition of modules over
+RingSpec, not a monolithic template.
 
 ## Jira Ticket Lifecycle (orchestrator-run, Stop-verified)
 - When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira, then set `jira_in_progress: true` in `.claude/logs/build_session.json`.
